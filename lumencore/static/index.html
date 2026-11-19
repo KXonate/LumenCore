@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LumenCore v3 — iGPU Cinema Renderer</title>
+  <link rel="stylesheet" href="style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://unpkg.com/three@0.169.0/build/three.module.js",
+        "three/addons/": "https://unpkg.com/three@0.169.0/examples/jsm/"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <span class="dot"></span>
+        <h1>LumenCore <span>v3 Cinema</span></h1>
+      </div>
+
+      <details class="panel" open>
+        <summary>1. Blender Scene (.blend)</summary>
+        <div class="panel-body">
+          <label class="field">
+            <span>Blender Path</span>
+            <input type="text" id="blenderPath" placeholder="Auto-detecting blender.exe..." />
+          </label>
+          <div id="dropZone" class="drop-zone">
+            <input type="file" id="blendInput" accept=".blend" hidden />
+            <p id="dropText">Drop <strong>.blend</strong> file here or click to browse</p>
+          </div>
+          <div class="row">
+            <button id="btnReloadLast" class="btn-secondary">Reload Last Scene</button>
+            <select id="viewportScale" title="Preview Resolution Scale">
+              <option value="0.5">50% Fast</option>
+              <option value="0.75" selected>75% Smooth</option>
+              <option value="1.0">100% Native</option>
+            </select>
+          </div>
+          <div id="sceneInfo" class="meta-badge">Default Dark Studio Active</div>
+        </div>
+      </details>
+
+      <details class="panel" open>
+        <summary>2. Light Inspector (Live)</summary>
+        <div class="panel-body">
+          <div class="row">
+            <select id="lightSelect" style="flex: 2;"></select>
+            <button id="btnAddSpot" class="btn-secondary" title="Add Studio SpotLight">+ Spot</button>
+            <button id="btnAddPoint" class="btn-secondary" title="Add PointLight">+ Point</button>
+          </div>
+
+          <div id="lightControls" class="light-controls">
+            <div class="row toggle-row">
+              <label class="check"><input type="checkbox" id="lightEnabled" checked /> Enabled</label>
+              <label class="check"><input type="checkbox" id="lightShadow" /> Shadows</label>
+              <label class="check"><input type="checkbox" id="lightGizmo" /> 3D Gizmo</label>
+            </div>
+
+            <div class="row align-center">
+              <label class="field" style="max-width: 68px;">
+                <span>Color</span>
+                <input type="color" id="lightColor" value="#ffffff" />
+              </label>
+              <label class="slider-field">
+                <span>Intensity <b id="valLInt">10.0</b></span>
+                <input type="range" id="lightIntensity" min="0" max="100" step="0.2" value="10" />
+              </label>
+            </div>
+
+            <div class="field">
+              <span>Position (X / Y / Z)</span>
+              <div class="xyz-grid">
+                <input type="number" id="lightPosX" step="0.2" />
+                <input type="number" id="lightPosY" step="0.2" />
+                <input type="number" id="lightPosZ" step="0.2" />
+              </div>
+            </div>
+
+            <div id="lightSpotWrap" class="spot-wrap">
+              <div class="field">
+                <span>Aim Target (X / Y / Z)</span>
+                <div class="xyz-grid">
+                  <input type="number" id="lightTgtX" step="0.2" />
+                  <input type="number" id="lightTgtY" step="0.2" />
+                  <input type="number" id="lightTgtZ" step="0.2" />
+                </div>
+              </div>
+              <label class="slider-field">
+                <span>Cone Angle <b id="valLAngle">45°</b></span>
+                <input type="range" id="lightAngle" min="5" max="85" step="1" value="45" />
+              </label>
+              <label class="slider-field">
+                <span>Edge Softness (Penumbra) <b id="valLPen">0.80</b></span>
+                <input type="range" id="lightPenumbra" min="0" max="1" step="0.02" value="0.8" />
+              </label>
+            </div>
+
+            <div class="row">
+              <label class="slider-field">
+                <span>Shadow Radius <b id="valLRad">0.40</b></span>
+                <input type="range" id="lightRadius" min="0" max="2.5" step="0.05" value="0.4" />
+              </label>
+              <label class="slider-field">
+                <span>Range <b id="valLDist">50</b></span>
+                <input type="range" id="lightDistance" min="2" max="150" step="1" value="50" />
+              </label>
+            </div>
+          </div>
+        </div>
+      </details>
+
+      <details class="panel">
+        <summary>3. Camera &amp; Optical DOF</summary>
+        <div class="panel-body">
+          <label class="field">
+            <span>Active Camera</span>
+            <select id="cameraSelect">
+              <option value="__free__">Free Orbit Camera</option>
+            </select>
+          </label>
+          <div class="row">
+            <button id="btnResetAccum" class="btn-secondary">Reset</button>
+            <button id="btnFitScene" class="btn-secondary">Frame</button>
+            <button id="btnRebakeProbe" class="btn-secondary">Re-Bake IBL</button>
+          </div>
+          <label class="slider-field">
+            <span>Optical DOF Blur <b id="valDof">0.00</b></span>
+            <input type="range" id="dofAperture" min="0.0" max="0.12" step="0.005" value="0.0" />
+          </label>
+          <label class="slider-field">
+            <span>Focus Dist (Shift+Click) <b id="valFocus">6.00</b></span>
+            <input type="range" id="focusDist" min="0.5" max="40.0" step="0.1" value="6.0" />
+          </label>
+        </div>
+      </details>
+
+      <details class="panel" open>
+        <summary>4. Global GI, SSR &amp; Atmosphere</summary>
+        <div class="panel-body">
+          <label class="slider-field">
+            <span>Global Light Scale <b id="valLightScale">0.60</b></span>
+            <input type="range" id="lightScale" min="0.05" max="3.0" step="0.05" value="0.60" />
+          </label>
+          <label class="slider-field">
+            <span>Room Probe IBL <b id="valEnv">0.55</b></span>
+            <input type="range" id="envIntensity" min="0.0" max="2.0" step="0.05" value="0.55" />
+          </label>
+          <label class="slider-field">
+            <span>Glossy SSR <b id="valSsr">0.95</b></span>
+            <input type="range" id="ssrStrength" min="0.0" max="2.0" step="0.05" value="0.95" />
+          </label>
+          <label class="slider-field">
+            <span>SSGI Bounce <b id="valGi">0.50</b></span>
+            <input type="range" id="giStrength" min="0.0" max="2.0" step="0.05" value="0.50" />
+          </label>
+          <label class="slider-field">
+            <span>Contact Shadows (GTAO) <b id="valContact">1.05</b></span>
+            <input type="range" id="contactStrength" min="0.0" max="1.8" step="0.05" value="1.05" />
+          </label>
+          <label class="slider-field">
+            <span>Shadow Softness <b id="valSoftness">1.00</b></span>
+            <input type="range" id="shadowSoftness" min="0.0" max="3.0" step="0.1" value="1.0" />
+          </label>
+          <label class="slider-field">
+            <span>Volumetric Haze <b id="valFog">0.18</b></span>
+            <input type="range" id="fogDensity" min="0.0" max="1.5" step="0.05" value="0.18" />
+          </label>
+        </div>
+      </details>
+
+      <details class="panel">
+        <summary>5. Cinema Optics &amp; Live Grading</summary>
+        <div class="panel-body">
+          <label class="slider-field">
+            <span>Exposure <b id="valExposure">1.00</b></span>
+            <input type="range" id="exposure" min="0.1" max="4.0" step="0.05" value="1.0" />
+          </label>
+          <label class="slider-field">
+            <span>AgX Contrast <b id="valContrast">1.12</b></span>
+            <input type="range" id="agxContrast" min="0.8" max="1.6" step="0.02" value="1.12" />
+          </label>
+          <label class="slider-field">
+            <span>Color Temp (Cool ↔ Warm) <b id="valTemp">0.05</b></span>
+            <input type="range" id="colorTemp" min="-0.5" max="0.5" step="0.02" value="0.05" />
+          </label>
+          <label class="slider-field">
+            <span>Saturation <b id="valSat">1.08</b></span>
+            <input type="range" id="saturation" min="0.0" max="1.8" step="0.02" value="1.08" />
+          </label>
+          <label class="slider-field">
+            <span>Fog Glow (Bloom) <b id="valBloom">0.32</b></span>
+            <input type="range" id="bloomStrength" min="0.0" max="1.5" step="0.05" value="0.32" />
+          </label>
+          <label class="slider-field">
+            <span>Anamorphic Streaks <b id="valStreak">0.35</b></span>
+            <input type="range" id="streakStrength" min="0.0" max="1.5" step="0.05" value="0.35" />
+          </label>
+          <label class="slider-field">
+            <span>CAS Sharpness <b id="valSharp">0.45</b></span>
+            <input type="range" id="sharpness" min="0.0" max="1.0" step="0.05" value="0.45" />
+          </label>
+          <label class="slider-field">
+            <span>Lens Chromatic Aberration <b id="valCa">0.20</b></span>
+            <input type="range" id="chromaticAberration" min="0.0" max="1.5" step="0.05" value="0.20" />
+          </label>
+          <label class="slider-field">
+            <span>Analog Film Grain <b id="valGrain">0.12</b></span>
+            <input type="range" id="filmGrain" min="0.0" max="0.8" step="0.02" value="0.12" />
+          </label>
+        </div>
+      </details>
+
+      <details class="panel" open>
+        <summary>6. Output &amp; Export</summary>
+        <div class="panel-body">
+          <div class="row">
+            <label class="field">
+              <span>Width</span>
+              <input type="number" id="outWidth" value="1920" min="256" max="3840" step="16" />
+            </label>
+            <label class="field">
+              <span>Height</span>
+              <input type="number" id="outHeight" value="1080" min="256" max="2160" step="16" />
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">
+              <span>Samples</span>
+              <input type="number" id="outSamples" value="64" min="4" max="512" step="4" />
+            </label>
+            <label class="field">
+              <span>Thermal Guard</span>
+              <select id="thermalGuard">
+                <option value="0">Off (Max Speed)</option>
+                <option value="16" selected>Balanced (16ms)</option>
+                <option value="40">Cool Laptop (40ms)</option>
+              </select>
+            </label>
+          </div>
+          <div class="row">
+            <label class="field">
+              <span>Format</span>
+              <select id="outFormat">
+                <option value="png">PNG</option>
+                <option value="exr">OpenEXR (Linear)</option>
+                <option value="jpg">JPG</option>
+                <option value="webp">WebP</option>
+              </select>
+            </label>
+            <label class="field">
+              <span>Color Depth</span>
+              <select id="outDepth">
+                <option value="8">8-bit</option>
+                <option value="16" selected>16-bit</option>
+                <option value="32">32-bit Float</option>
+              </select>
+            </label>
+          </div>
+          <button id="btnRender" class="btn-primary">Render &amp; Export Image</button>
+        </div>
+      </details>
+    </aside>
+
+    <main class="viewport-wrap">
+      <canvas id="glCanvas"></canvas>
+      <div class="hud-top">
+        <span id="hudSamples">Samples: 0 / 64</span>
+        <span id="hudPipeline">Pipeline: WebGL2 32F Cinema</span>
+        <span id="hudStatus">Ready</span>
+      </div>
+      <div id="progressBarWrap" class="progress-wrap hidden">
+        <div id="progressBar" class="progress-fill"></div>
+      </div>
+    </main>
+  </div>
+
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
